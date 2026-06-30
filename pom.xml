@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.lsgalves.guacamole</groupId>
+    <artifactId>guacamole-auth-vault-ssh-otp</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>guacamole-auth-vault-ssh-otp</name>
+    <description>
+        Apache Guacamole extension that injects one-time SSH passwords fetched
+        from HashiCorp Vault (SSH secrets engine, OTP mode) into the "password"
+        parameter of SSH connections at connect time.
+    </description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- The official Guacamole 1.5.5 image runs on Java 8. -->
+        <maven.compiler.release>8</maven.compiler.release>
+
+        <!-- Must match the targeted Apache Guacamole version -->
+        <guacamole.version>1.5.5</guacamole.version>
+        <jackson.version>2.16.1</jackson.version>
+    </properties>
+
+    <dependencies>
+
+        <!-- Guacamole extension API. Provided at runtime by the web application. -->
+        <dependency>
+            <groupId>org.apache.guacamole</groupId>
+            <artifactId>guacamole-ext</artifactId>
+            <version>${guacamole.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Logging API. Provided at runtime by the web application. -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.36</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- JSON parsing for the Vault HTTP API. Bundled (shaded) into the jar. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}-${project.version}</finalName>
+        <plugins>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+            </plugin>
+
+            <!--
+                Bundle Jackson into the extension jar and relocate it to a private
+                package, so it cannot clash with whatever Jackson version the
+                Guacamole web application ships with.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <relocations>
+                                <relocation>
+                                    <pattern>com.fasterxml.jackson</pattern>
+                                    <shadedPattern>com.lsgalves.guacamole.auth.vault.shaded.jackson</shadedPattern>
+                                </relocation>
+                            </relocations>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>module-info.class</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+        </plugins>
+    </build>
+
+</project>

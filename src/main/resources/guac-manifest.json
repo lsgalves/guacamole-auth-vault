@@ -1,0 +1,8 @@
+{
+    "guacamoleVersion" : "1.5.5",
+    "name" : "Vault SSH OTP",
+    "namespace" : "vault-ssh-otp",
+    "authProviders" : [
+        "com.lsgalves.guacamole.auth.vault.VaultAuthenticationProvider"
+    ]
+}
