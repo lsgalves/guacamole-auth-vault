@@ -1,0 +1,155 @@
+name: guacamole-vault-ssh-otp
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # HashiCorp Vault (development mode — in-memory, auto-unsealed).
+  # ---------------------------------------------------------------------------
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: vault
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: root
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_ADDR: http://127.0.0.1:8200
+    command: server -dev
+    ports:
+      - "8200:8200"
+    networks:
+      - guacnet
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # ---------------------------------------------------------------------------
+  # One-shot configuration of Vault: enable the SSH engine, create the OTP role,
+  # a least-privilege policy, and a token for Guacamole (written to a shared
+  # volume that the Guacamole container reads).
+  # ---------------------------------------------------------------------------
+  vault-bootstrap:
+    image: hashicorp/vault:1.15
+    container_name: vault-bootstrap
+    depends_on:
+      vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: root
+    volumes:
+      - ./deploy/vault/bootstrap.sh:/bootstrap.sh:ro
+      - vault_shared:/vault-shared
+    entrypoint: ["/bin/sh", "/bootstrap.sh"]
+    networks:
+      - guacnet
+
+  # ---------------------------------------------------------------------------
+  # Target Linux host. Runs sshd configured to authenticate via PAM using
+  # vault-ssh-helper, which validates the one-time password against Vault.
+  # ---------------------------------------------------------------------------
+  ssh-host:
+    build:
+      context: ./deploy/ssh-host
+    container_name: ssh-host
+    depends_on:
+      vault:
+        condition: service_healthy
+    networks:
+      - guacnet
+    # Exposed only for optional manual testing from the host:
+    #   ssh -o PreferredAuthentications=keyboard-interactive guacuser@localhost -p 2222
+    ports:
+      - "2222:22"
+
+  # ---------------------------------------------------------------------------
+  # MariaDB backing store for Guacamole (guacamole-auth-jdbc-mysql). Provides
+  # the normal multi-user UI: users, connection management, permissions, etc.
+  # On first start it auto-applies the Guacamole schema and seeds a demo SSH
+  # connection from deploy/database/initdb.
+  # ---------------------------------------------------------------------------
+  database:
+    image: mariadb:11
+    container_name: database
+    environment:
+      MARIADB_ROOT_PASSWORD: rootpass
+      MARIADB_DATABASE: guacamole_db
+      MARIADB_USER: guacamole_user
+      MARIADB_PASSWORD: guacamole_pass
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./deploy/database/initdb:/docker-entrypoint-initdb.d:ro
+    networks:
+      - guacnet
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ---------------------------------------------------------------------------
+  # Target Windows-like host for RDP. Runs xrdp + an XFCE desktop, with a local
+  # user whose password matches the Vault KV secret at
+  # secret/guacamole/rdp/rdp-host.
+  # ---------------------------------------------------------------------------
+  rdp-host:
+    build:
+      context: ./deploy/rdp-host
+    container_name: rdp-host
+    networks:
+      - guacnet
+    # Exposed only for optional manual testing with any RDP client.
+    ports:
+      - "3389:3389"
+
+  # ---------------------------------------------------------------------------
+  # The Guacamole proxy daemon (renders RDP/VNC/SSH to the browser).
+  # ---------------------------------------------------------------------------
+  guacd:
+    image: guacamole/guacd:1.5.5
+    container_name: guacd
+    networks:
+      - guacnet
+
+  # ---------------------------------------------------------------------------
+  # The Guacamole web application, built with the Vault SSH OTP extension baked
+  # in. Available at http://localhost:8080/guacamole
+  # ---------------------------------------------------------------------------
+  guacamole:
+    build:
+      context: .
+      dockerfile: deploy/guacamole/Dockerfile
+    container_name: guacamole
+    depends_on:
+      guacd:
+        condition: service_started
+      database:
+        condition: service_healthy
+      vault-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      # Required by the official entrypoint (checked before guacamole.properties).
+      GUACD_HOSTNAME: guacd
+      GUACD_PORT: "4822"
+      # Database auth backend (guacamole-auth-jdbc-mysql, bundled in the image).
+      MYSQL_HOSTNAME: database
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: guacamole_db
+      MYSQL_USER: guacamole_user
+      MYSQL_PASSWORD: guacamole_pass
+    volumes:
+      - vault_shared:/vault-shared:ro
+    ports:
+      - "8080:8080"
+    networks:
+      - guacnet
+
+networks:
+  guacnet:
+    driver: bridge
+
+volumes:
+  vault_shared:
+  db_data:

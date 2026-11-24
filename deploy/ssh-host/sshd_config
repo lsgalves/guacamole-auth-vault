@@ -1,0 +1,16 @@
+Port 22
+
+# Authentication is delegated entirely to PAM (vault-ssh-helper). Disable every
+# other method so only Vault one-time passwords are accepted.
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication no
+KbdInteractiveAuthentication yes
+UsePAM yes
+AuthenticationMethods keyboard-interactive
+
+X11Forwarding no
+PrintMotd no
+AcceptEnv LANG LC_*
+
+Subsystem sftp /usr/lib/openssh/sftp-server

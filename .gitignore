@@ -29,3 +29,16 @@ replay_pid*
 # ---------------------------------------------------------------------------
 .DS_Store
 Thumbs.db
+
+# ---------------------------------------------------------------------------
+# Logs / local runtime artifacts
+# ---------------------------------------------------------------------------
+*.log
+
+# Local-only environment overrides
+.env
+compose.override.yml
+
+# Secrets that may be produced when experimenting locally (the real token lives
+# in a Docker volume, never on disk in the repo).
+*.token

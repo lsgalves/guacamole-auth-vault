@@ -7,7 +7,7 @@
 
     <groupId>com.lsgalves.guacamole</groupId>
     <artifactId>guacamole-auth-vault-ssh-otp</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <packaging>jar</packaging>
 
     <name>guacamole-auth-vault-ssh-otp</name>

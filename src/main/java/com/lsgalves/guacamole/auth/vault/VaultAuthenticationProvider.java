@@ -6,6 +6,7 @@ import org.apache.guacamole.net.auth.AuthenticatedUser;
 import org.apache.guacamole.net.auth.Credentials;
 import org.apache.guacamole.net.auth.UserContext;
 
+import com.lsgalves.guacamole.auth.vault.client.VaultTokenProvider;
 import com.lsgalves.guacamole.auth.vault.conf.VaultConfigurationService;
 
 /**
@@ -18,6 +19,13 @@ public class VaultAuthenticationProvider extends AbstractAuthenticationProvider 
     private final VaultConfigurationService confService =
             new VaultConfigurationService();
 
+    /**
+     * Shared by every user context so that all connections reuse one cached
+     * AppRole token instead of logging in per user.
+     */
+    private final VaultTokenProvider tokenProvider =
+            new VaultTokenProvider(confService);
+
     @Override
     public String getIdentifier() {
         return "vault-ssh-otp";
@@ -27,14 +35,14 @@ public class VaultAuthenticationProvider extends AbstractAuthenticationProvider 
     public UserContext decorate(UserContext context,
             AuthenticatedUser authenticatedUser, Credentials credentials)
             throws GuacamoleException {
-        return new VaultUserContext(context, confService);
+        return new VaultUserContext(context, confService, tokenProvider);
     }
 
     @Override
     public UserContext redecorate(UserContext decorated, UserContext context,
             AuthenticatedUser authenticatedUser, Credentials credentials)
             throws GuacamoleException {
-        return new VaultUserContext(context, confService);
+        return new VaultUserContext(context, confService, tokenProvider);
     }
 
 }

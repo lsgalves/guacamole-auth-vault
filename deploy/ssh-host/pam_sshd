@@ -1,0 +1,14 @@
+# PAM configuration for sshd, validating one-time passwords via vault-ssh-helper.
+#
+# The default password stack (@include common-auth) is intentionally NOT used.
+# vault-ssh-helper reads the entered OTP (expose_authtok) and verifies it
+# against Vault; pam_unix is kept only to satisfy the auth stack harmlessly.
+
+# NOTE: -dev permits a plain-HTTP vault_addr (this lab runs Vault without TLS).
+# Drop it once Vault is served over HTTPS.
+auth    requisite       pam_exec.so quiet expose_authtok log=/var/log/vault-ssh-helper.log /usr/local/bin/vault-ssh-helper -dev -config=/etc/vault-ssh-helper.d/config.hcl
+auth    optional        pam_unix.so not_set_pass use_first_pass nodelay
+
+# Standard account / session handling.
+@include common-account
+@include common-session
