@@ -99,6 +99,52 @@ public class VaultClient {
     }
 
     /**
+     * Tells whether Vault still accepts this client's token.
+     *
+     * <p>Calls {@code GET /v1/auth/token/lookup-self}, which Vault's built-in
+     * "default" policy grants to every token. Vault answers 403 when the token is
+     * expired, revoked or otherwise rejected.
+     *
+     * @return true if the token is valid, false if Vault rejects it.
+     * @throws GuacamoleException If Vault cannot be reached or gives any other
+     *         answer.
+     */
+    public boolean isTokenValid() throws GuacamoleException {
+
+        String url = vaultAddr + "/v1/auth/token/lookup-self";
+
+        Response response = send("GET", url, null);
+        if (response.isSuccess())
+            return true;
+
+        if (response.status == HttpURLConnection.HTTP_FORBIDDEN)
+            return false;
+
+        throw new GuacamoleServerException(
+                "Vault returned HTTP " + response.status
+              + " on token lookup-self: " + response.body);
+    }
+
+    /**
+     * Revokes this client's token.
+     *
+     * <p>Calls {@code POST /v1/auth/token/revoke-self}, which Vault's built-in
+     * "default" policy grants to every token.
+     *
+     * @throws GuacamoleException If the revocation fails.
+     */
+    public void revokeSelf() throws GuacamoleException {
+
+        String url = vaultAddr + "/v1/auth/token/revoke-self";
+
+        Response response = send("POST", url, MAPPER.createObjectNode());
+        if (!response.isSuccess())
+            throw new GuacamoleServerException(
+                    "Vault returned HTTP " + response.status
+                  + " on token revoke-self: " + response.body);
+    }
+
+    /**
      * Requests a one-time SSH password from Vault for the given user and host.
      *
      * <p>Calls {@code POST /v1/<mount>/creds/<role>} with the target username and

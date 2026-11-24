@@ -174,9 +174,15 @@ the static token is ignored.
 
 **AppRole (recommended; used by the lab).** The extension logs in on the first
 Vault call, caches the short-lived token it gets back and shares it across all
-users, then logs in again once 80% of the token's TTL has elapsed. If Vault
-answers `403` (e.g. the token was revoked), it logs in again and retries once.
-Logins happen on demand, so nothing needs to be renewed in the background, and a
+users, then logs in again once 80% of the token's TTL has elapsed, revoking the
+token it replaces (`auth/token/revoke-self`). If Vault answers `403`, the
+extension asks Vault whether the token is still valid (`auth/token/lookup-self`):
+only if it isn't (e.g. it was revoked) does it log in again and retry once. A
+`403` for a valid token is a policy denial and is returned as is, without a new
+login. Both calls are granted by Vault's built-in `default` policy, which AppRole
+tokens get unless the role sets `token_no_default_policy=true`; in that case
+grant `read` on `auth/token/lookup-self` and `update` on
+`auth/token/revoke-self`. Logins happen on demand, so nothing needs to be renewed in the background, and a
 Guacamole that was down for longer than the token TTL just logs in again. The lab's
 `vault-bootstrap` service creates the role and writes the role ID and a secret
 ID to a shared volume at `/vault-shared/guac.role-id` and
